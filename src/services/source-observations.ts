@@ -24,6 +24,12 @@ export function recordSourceObservation(record: SourceObservationRecord): number
   if (!record.raw_payload || typeof record.raw_payload !== 'string') {
     throw new Error('[Source Observation Error] raw_payload is required.');
   }
+  if (!record.parser_version || typeof record.parser_version !== 'string' || record.parser_version.trim() === '') {
+    throw new Error('[Source Observation Error] parser_version is required and must be a non-empty string.');
+  }
+  if (record.http_status !== undefined && record.http_status !== null && (!Number.isInteger(record.http_status) || record.http_status < 100 || record.http_status > 599)) {
+    throw new Error('[Source Observation Error] http_status must be an HTTP status code between 100 and 599.');
+  }
 
   initDatabase();
   const db = getDatabase();
@@ -36,7 +42,7 @@ export function recordSourceObservation(record: SourceObservationRecord): number
       raw_payload_hash, parser_version, raw_payload, observed_at
     ) VALUES (
       ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP
-    ) ON CONFLICT(isin, source_provider, raw_payload_hash) DO NOTHING
+    ) ON CONFLICT(isin, source_provider, raw_payload_hash, http_status) DO NOTHING
   `);
 
   const result = stmt.run(
@@ -52,8 +58,8 @@ export function recordSourceObservation(record: SourceObservationRecord): number
   if (result.changes === 0) {
     const existing = db.prepare(`
       SELECT id FROM bond_source_observations
-      WHERE isin = ? AND source_provider = ? AND raw_payload_hash = ?
-    `).get(record.isin.trim(), record.source_provider.trim(), rawHash) as { id: number };
+      WHERE isin = ? AND source_provider = ? AND raw_payload_hash = ? AND http_status = ?
+    `).get(record.isin.trim(), record.source_provider.trim(), rawHash, record.http_status ?? 200) as { id: number };
     return existing.id;
   }
 

@@ -54,8 +54,20 @@ describe('Bond source observations', () => {
     expect(observations.some((row) => row.http_status === 503)).toBe(true);
   });
 
-  it('rejects observations without an ISIN or payload', () => {
+  it('preserves a status change when the payload body is identical', () => {
+    const isin = 'INE002A07809';
+    const payload = JSON.stringify({ isin, observed: 'same-body' });
+    const okId = recordSourceObservation({ isin, source_provider: TEST_PROVIDER, http_status: 200, parser_version: 'test-1', raw_payload: payload });
+    const failedId = recordSourceObservation({ isin, source_provider: TEST_PROVIDER, http_status: 503, parser_version: 'test-1', raw_payload: payload });
+
+    expect(failedId).not.toBe(okId);
+    const observations = getObservationsForIsin(isin).filter((row) => row.source_provider === TEST_PROVIDER && row.raw_payload_hash === createPayloadHash(payload));
+    expect(observations.map((row) => row.http_status)).toEqual(expect.arrayContaining([200, 503]));
+  });
+
+  it('rejects observations without an ISIN, payload, or parser version', () => {
     expect(() => recordSourceObservation({ isin: '', source_provider: 'test', parser_version: '1', raw_payload: '{}' })).toThrow('isin is required');
     expect(() => recordSourceObservation({ isin: 'INE002A07809', source_provider: 'test', parser_version: '1', raw_payload: '' })).toThrow('raw_payload is required');
+    expect(() => recordSourceObservation({ isin: 'INE002A07809', source_provider: 'test', parser_version: '', raw_payload: '{}' })).toThrow('parser_version is required');
   });
 });
