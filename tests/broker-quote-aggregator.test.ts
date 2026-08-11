@@ -56,6 +56,17 @@ describe('Broker & OBPP Quote Aggregator', () => {
     expect(quotes.some((quote) => quote.clean_price === 9800)).toBe(true);
   });
 
+  it('automatically creates a bond_instruments stub for newly discovered broker quote ISINs', () => {
+    const isin = 'INE888A07888';
+    const id = recordBrokerQuoteObservation({ isin, broker_name: 'test_obpp', clean_price: 10000, quoted_ytm: 9.8 });
+
+    expect(id).toBeGreaterThan(0);
+    const db = getDatabase();
+    const inst = db.prepare('SELECT * FROM bond_instruments WHERE isin = ?').get(isin) as any;
+    expect(inst).toBeDefined();
+    expect(inst.issuer_name).toBe('UNKNOWN_ISSUER_STUB');
+  });
+
   it('rejects quotes without ISIN or broker name', () => {
     expect(() => recordBrokerQuoteObservation({ isin: '', broker_name: 'test' })).toThrow('isin is required');
     expect(() => recordBrokerQuoteObservation({ isin: 'INE002A07809', broker_name: '' })).toThrow('broker_name is required');

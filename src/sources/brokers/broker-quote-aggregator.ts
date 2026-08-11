@@ -25,6 +25,18 @@ export function recordBrokerQuoteObservation(quote: BrokerQuoteObservation): num
   initDatabase();
   const db = getDatabase();
 
+  const isinClean = quote.isin.trim().toUpperCase();
+  const brokerClean = quote.broker_name.trim();
+
+  // Auto-create stub in bond_instruments if ISIN is newly discovered
+  const existingInst = db.prepare('SELECT isin FROM bond_instruments WHERE isin = ?').get(isinClean);
+  if (!existingInst) {
+    db.prepare(`
+      INSERT INTO bond_instruments (isin, issuer_name, source_provider)
+      VALUES (?, 'UNKNOWN_ISSUER_STUB', ?)
+    `).run(isinClean, brokerClean);
+  }
+
   const stmt = db.prepare(`
     INSERT INTO broker_quote_observations (
       isin, broker_name, clean_price, dirty_price, accrued_interest,
