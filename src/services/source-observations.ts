@@ -71,7 +71,7 @@ export function recordSourceObservation(record: SourceObservationRecord): number
     const existing = db.prepare(`
       SELECT id FROM bond_source_observations
       WHERE isin = ? AND source_provider = ? AND raw_payload_hash = ? AND http_status = ?
-    `).get(record.isin.trim(), record.source_provider.trim(), rawHash, record.http_status ?? 200) as { id: number };
+    `).get(isinClean, providerClean, rawHash, record.http_status ?? 200) as { id: number };
     return existing.id;
   }
 
