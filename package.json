@@ -1,0 +1,36 @@
+{
+  "name": "bond-tracker",
+  "version": "0.1.0",
+  "description": "Open-source, provider-agnostic Indian Corporate Bond & NCD IPO Aggregator",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest --run"
+  },
+  "keywords": [
+    "bonds",
+    "ncd",
+    "isin",
+    "sebi",
+    "cdsl",
+    "nsdl",
+    "bse",
+    "nse",
+    "ytm",
+    "india"
+  ],
+  "author": "Suyash Taneja",
+  "license": "MIT",
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "pdf-parse": "^1.1.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.13.1",
+    "@types/pdf-parse": "^1.1.4",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.9"
+  }
+}
