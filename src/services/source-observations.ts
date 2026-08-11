@@ -34,6 +34,18 @@ export function recordSourceObservation(record: SourceObservationRecord): number
   initDatabase();
   const db = getDatabase();
 
+  const isinClean = record.isin.trim().toUpperCase();
+  const providerClean = record.source_provider.trim();
+
+  // Auto-create stub in bond_instruments if ISIN is newly discovered
+  const existingInst = db.prepare('SELECT isin FROM bond_instruments WHERE isin = ?').get(isinClean);
+  if (!existingInst) {
+    db.prepare(`
+      INSERT INTO bond_instruments (isin, issuer_name, source_provider)
+      VALUES (?, 'UNKNOWN_ISSUER_STUB', ?)
+    `).run(isinClean, providerClean);
+  }
+
   const rawHash = createPayloadHash(record.raw_payload);
 
   const stmt = db.prepare(`
