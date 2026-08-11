@@ -11,9 +11,14 @@ const FORBIDDEN_PATTERNS = [
   'currentValue',
   'faceValueAfterApply',
   'access_token',
+  'api_key',
   'request_token',
   'checksum',
-  'password'
+  'password',
+  'secret',
+  'PAN',
+  'dp_id',
+  'client_id'
 ];
 
 function getAllFiles(dir: string, fileList: string[] = []): string[] {

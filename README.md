@@ -19,4 +19,4 @@ npm run build
 
 ## Privacy & Isolation Contract
 
-This project contains **100% public reference and market data only**. It contains zero personal portfolio holdings, bank transactions, PANs, DP/client IDs, account credentials, or user identifiers.
+This project contains **100% public reference and market data only**. It contains zero personal portfolio holdings, bank transactions, personal identifiers, DP/client IDs, account credentials, or user identifiers.
