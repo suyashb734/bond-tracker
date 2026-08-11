@@ -58,8 +58,8 @@ export function recordSourceObservation(record: SourceObservationRecord): number
   `);
 
   const result = stmt.run(
-    record.isin.trim(),
-    record.source_provider.trim(),
+    isinClean,
+    providerClean,
     record.source_url ?? null,
     record.http_status ?? 200,
     rawHash,

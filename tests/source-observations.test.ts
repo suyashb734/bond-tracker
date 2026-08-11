@@ -77,6 +77,18 @@ describe('Bond source observations', () => {
     expect(inst.issuer_name).toBe('UNKNOWN_ISSUER_STUB');
   });
 
+  it('automatically creates a bond_instruments stub for newly discovered mixed-case ISINs and normalizes uppercase', () => {
+    const isin = 'ine777a07777';
+    const payload = JSON.stringify({ isin, issuer: 'MIXED CASE ISSUER' });
+    const id = recordSourceObservation({ isin, source_provider: TEST_PROVIDER, http_status: 200, parser_version: 'test-1', raw_payload: payload });
+
+    expect(id).toBeGreaterThan(0);
+    const db = getDatabase();
+    const inst = db.prepare('SELECT * FROM bond_instruments WHERE isin = ?').get('INE777A07777') as any;
+    expect(inst).toBeDefined();
+    expect(inst.issuer_name).toBe('UNKNOWN_ISSUER_STUB');
+  });
+
   it('rejects observations without an ISIN, payload, or parser version', () => {
     expect(() => recordSourceObservation({ isin: '', source_provider: 'test', parser_version: '1', raw_payload: '{}' })).toThrow('isin is required');
     expect(() => recordSourceObservation({ isin: 'INE002A07809', source_provider: 'test', parser_version: '1', raw_payload: '' })).toThrow('raw_payload is required');
