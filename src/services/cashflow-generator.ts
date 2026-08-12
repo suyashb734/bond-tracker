@@ -34,14 +34,14 @@ export function generateUnitizedCashflows(input: {
     unknown: 0
   };
   const periods = periodsPerYear[input.frequency];
-  const couponPerUnit = periods > 0 ? unitFaceValue * (input.coupon_rate / 100) / periods : 0;
+  const couponPerUnit = periods > 0 ? (unitFaceValue * (input.coupon_rate / 100)) / periods : 0;
   const events = input.redemption_events.length > 0 ? input.redemption_events : [];
 
   return events.map((event) => ({
     isin: input.isin.trim().toUpperCase(),
     due_date: event.due_date,
     gross_coupon_per_unit: couponPerUnit,
-    principal_redemption_per_unit: event.principal_amount === null ? 0 : event.principal_amount * unitFaceValue / input.face_value,
+    principal_redemption_per_unit: event.principal_amount === null ? 0 : (event.principal_amount * unitFaceValue) / input.face_value,
     unit_face_value: unitFaceValue,
     day_count_convention: input.day_count_convention,
     evidence_doc_id: input.evidence_doc_id ?? null

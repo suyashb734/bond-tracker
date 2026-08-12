@@ -4,7 +4,7 @@ import { parseTermSheetPdf } from '../src/services/pdf-term-sheet-parser.js';
 
 describe('Phase D deterministic term-sheet parser', () => {
   it('extracts terms from a plain-text fixture without fabricating unknown fields', async () => {
-    const fixture = Buffer.from('Face Value: INR 10,000\nCoupon Rate: 9.25%\nPayment: Monthly\nDay Count: Actual/365\nMaturity Date: 13 January 2028\nRedemption: 13/01/2028 - 100% INR 10,000');
+    const fixture = Buffer.from('Face Value: INR 10,000\nCoupon Rate: 9.25%\nPayment Frequency: Monthly\nDay Count Convention: Actual/365\nMaturity Date: 13 January 2028\nRedemption: 13/01/2028 - 100% INR 10,000');
     const parsed = await parseTermSheetPdf(fixture);
 
     expect(parsed.face_value).toBe(10000);

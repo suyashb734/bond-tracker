@@ -23,7 +23,7 @@ export async function parseTermSheetPdf(pdfBuffer: Buffer): Promise<ParsedTermSh
     text = parsed.text || '';
     pageCount = typeof parsed.numpages === 'number' ? parsed.numpages : null;
   } catch {
-    // Only a controlled fallback for plain-text fixtures; no values are fabricated.
+    // Only a controlled fallback for plain-text fixtures in tests; no values are fabricated.
     text = pdfBuffer.toString('utf8');
   }
 
