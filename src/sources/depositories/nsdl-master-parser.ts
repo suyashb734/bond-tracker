@@ -8,6 +8,7 @@ export type NsdlMasterRow = {
   allotment_date?: string | null;
   maturity_date?: string | null;
   face_value?: number | null;
+  raw_payload?: string;
 };
 
 export function parseNsdlMasterText(content: string): NsdlMasterRow[] {
@@ -19,29 +20,20 @@ export function parseNsdlMasterText(content: string): NsdlMasterRow[] {
     const clean = line.trim();
     if (!clean) continue;
 
-    // Matches valid Indian ISINs (INE, IN1-IN4, INS, IN8, IN0)
     const isinMatch = clean.match(/\b(IN[A-Z0-9]{10})\b/i);
     if (!isinMatch) continue;
 
     const isin = isinMatch[1].toUpperCase();
-
-    // Quote-aware splitting
     const parts = parseQuoteAwareLine(clean);
+    const nonIsinParts = parts.filter(
+      (p) => p.toUpperCase() !== isin && !/^(DEBT|NCD|BOND|CP|EQTY|PREF)$/i.test(p.trim())
+    );
 
-    let company = '';
-    // Find the part that contains the ISIN and extract the company name from other parts
-    const nonIsinParts = parts.filter((p) => p.toUpperCase() !== isin && !/^(DEBT|NCD|BOND|CP|EQTY|PREF)$/i.test(p.trim()));
-
-    if (nonIsinParts.length > 0) {
-      company = nonIsinParts[0].trim();
-    } else {
-      // Fixed-width fallback: strip ISIN from string
-      company = clean.replace(isin, '').replace(/^[,|\t"'\s]+|[,|\t"'\s]+$/g, '').trim();
-    }
-
+    let company = nonIsinParts.length > 0 ? nonIsinParts[0].trim() : '';
     if (!company || company.length < 2) {
-      company = 'NSDL ADMITTED ISSUER';
+      company = clean.replace(isinMatch[1], '').replace(/^[,|\t"'\s]+|[,|\t"'\s]+$/g, '').trim();
     }
+    if (!company || company.length < 2) company = 'NSDL ADMITTED ISSUER';
 
     rows.push({
       isin,
@@ -49,7 +41,8 @@ export function parseNsdlMasterText(content: string): NsdlMasterRow[] {
       security_type: 'DEBT',
       allotment_date: null,
       maturity_date: null,
-      face_value: null
+      face_value: null,
+      raw_payload: clean
     });
   }
 
@@ -76,18 +69,15 @@ function parseQuoteAwareLine(line: string): string[] {
   return result.filter((p) => p.length > 0);
 }
 
-export function ingestNsdlMasterRows(rows: NsdlMasterRow[], rawPayload: string): number {
+export function ingestNsdlMasterRows(rows: NsdlMasterRow[], rawPayload: string, sourceUrl?: string): number {
   if (rows.length === 0) return 0;
 
   initDatabase();
   const db = getDatabase();
-
   const upsertStmt = db.prepare(`
-    INSERT INTO bond_instruments (
-      isin, issuer_name, source_provider, updated_at
-    ) VALUES (
-      ?, ?, 'nsdl_master', CURRENT_TIMESTAMP
-    ) ON CONFLICT(isin) DO UPDATE SET
+    INSERT INTO bond_instruments (isin, issuer_name, source_provider, updated_at)
+    VALUES (?, ?, 'nsdl_master', CURRENT_TIMESTAMP)
+    ON CONFLICT(isin) DO UPDATE SET
       issuer_name = CASE
         WHEN bond_instruments.issuer_name = 'UNKNOWN_ISSUER_STUB' THEN excluded.issuer_name
         ELSE bond_instruments.issuer_name
@@ -104,14 +94,13 @@ export function ingestNsdlMasterRows(rows: NsdlMasterRow[], rawPayload: string):
   const tx = db.transaction(() => {
     for (const row of rows) {
       upsertStmt.run(row.isin, row.company_name);
-
       recordSourceObservation({
         isin: row.isin,
         source_provider: 'nsdl_master',
+        source_url: sourceUrl,
         parser_version: 'nsdl-text-v1',
-        raw_payload: JSON.stringify(row)
+        raw_payload: row.raw_payload ?? rawPayload
       });
-
       ingested += 1;
     }
   });
