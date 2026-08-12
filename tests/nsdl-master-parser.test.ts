@@ -1,8 +1,29 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { parseNsdlMasterText, ingestNsdlMasterRows } from '../src/sources/depositories/nsdl-master-parser.js';
 import { getObservationsForIsin } from '../src/services/source-observations.js';
+import { closeDatabase, initDatabase } from '../src/db/index.js';
 
 describe('NSDL Master Directory Parser', () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), 'bond-tracker-nsdl-test-'));
+    process.env.BOND_TRACKER_DB_PATH = join(tempDir, 'test_bond_tracker.db');
+    closeDatabase();
+    initDatabase();
+  });
+
+  afterEach(() => {
+    closeDatabase();
+    delete process.env.BOND_TRACKER_DB_PATH;
+    if (tempDir) {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
   it('parses NSDL master lines and extracts valid ISINs', () => {
     const content = `INE001A07015|HOUSING DEVELOPMENT FINANCE CORPORATION LIMITED|DEBT\nINE002A07809|RELIANCE INDUSTRIES LIMITED|DEBT`;
     const rows = parseNsdlMasterText(content);
