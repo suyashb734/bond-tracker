@@ -45,14 +45,24 @@ export function parseUdiffIsinCsv(csvContent: string, provider: 'cdsl_udiff' | '
 
     const parts = parseCsvLine(line);
     const isin = parts[isinIdx]?.toUpperCase().trim();
-    if (!isin || !/^(INE|IN8|IN0)[A-Z0-9]{9}$/.test(isin)) continue;
+    if (!isin || !/^IN[A-Z0-9]{10}$/.test(isin)) continue;
 
     const issuer = parts[issuerIdx]?.trim();
     if (!issuer || issuer.length < 2) continue;
 
-    const instType = parts[typeIdx]?.trim();
-    // Keep debt, NCD, CP, and bond securities
-    const isDebtType = !instType || /DEBT|NCD|BOND|DEB|CP/i.test(instType) || /NCD|Debenture|Bond|Redeemable/i.test(parts[descIdx] || '');
+    const instType = parts[typeIdx]?.trim().toUpperCase();
+    const desc = (parts[descIdx] || '').toUpperCase();
+
+    // Explicitly reject equity and preference share classifications
+    if (instType === 'EQTY' || instType === 'PREF' || desc.includes('EQUITY SHARE') || desc.includes('PREFERENCE SHARE')) {
+      continue;
+    }
+
+    // Keep debt, NCD, CP, debenture, and bond securities
+    const isDebtType = !instType ||
+      /DEBT|NCD|BOND|DEB|CP/.test(instType) ||
+      /\bNCD\b|DEBENTURE|\BBOND\b|NON[- ]CONVERTIBLE/i.test(desc);
+
     if (!isDebtType) continue;
 
     const issueDt = parts[issueDtIdx]?.trim();
