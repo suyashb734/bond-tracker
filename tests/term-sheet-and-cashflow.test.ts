@@ -16,7 +16,7 @@ describe('Phase D deterministic term-sheet parser', () => {
   });
 
   it('uses labeled line context so preceding marketing mentions do not override real payment frequency', async () => {
-    const fixture = Buffer.from('We provide monthly updates and annual reporting.\nPayment Frequency: Quarterly\nFace Value: 10,000');
+    const fixture = Buffer.from('The grievance redressal frequency is monthly per SEBI norms.\nPayment Frequency: Quarterly\nFace Value: 10,000');
     const parsed = await parseTermSheetPdf(fixture);
 
     expect(parsed.payout_frequency).toBe('quarterly');

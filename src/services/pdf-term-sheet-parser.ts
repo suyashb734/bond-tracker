@@ -70,26 +70,36 @@ function extractLabeledDate(text: string, regex: RegExp): string | null {
 }
 
 function extractLabeledFrequency(text: string): ParsedTermSheet['payout_frequency'] {
-  const labelMatch = text.match(/(?:frequency|interest payment|payout frequency|coupon payment)\s*[:\-]?\s*([^\n;,]+)/i);
-  const targetText = labelMatch ? labelMatch[1] : text;
-
-  if (/monthly|twelve times/i.test(targetText)) return 'monthly';
-  if (/quarterly|four times/i.test(targetText)) return 'quarterly';
-  if (/semi[- ]annual|twice/i.test(targetText)) return 'semi_annually';
-  if (/annually|once a year/i.test(targetText)) return 'annually';
-  if (/cumulative|no periodic interest/i.test(targetText)) return 'cumulative';
+  // Line-anchored label match to prevent marketing text from triggering early
+  const lines = text.split(/\r?\n/);
+  for (const line of lines) {
+    const labelMatch = line.match(/^\s*(?:payment\s+frequency|payout\s+frequency|interest\s+payment|coupon\s+payment|coupon\s+frequency)\s*[:\-]\s*(.*)$/i);
+    if (labelMatch) {
+      const targetText = labelMatch[1].trim();
+      if (/monthly|twelve times/i.test(targetText)) return 'monthly';
+      if (/quarterly|four times/i.test(targetText)) return 'quarterly';
+      if (/semi[- ]annual|twice/i.test(targetText)) return 'semi_annually';
+      if (/annually|once a year/i.test(targetText)) return 'annually';
+      if (/cumulative|no periodic interest/i.test(targetText)) return 'cumulative';
+    }
+  }
 
   return 'unknown';
 }
 
 function extractLabeledDayCount(text: string): ParsedTermSheet['day_count_convention'] {
-  const labelMatch = text.match(/(?:day count|interest calculation|convention)\s*[:\-]?\s*([^\n;,]+)/i);
-  const targetText = labelMatch ? labelMatch[1] : text;
-
-  if (/actual\s*\/\s*365/i.test(targetText)) return 'Actual/365';
-  if (/actual\s*\/\s*360/i.test(targetText)) return 'Actual/360';
-  if (/actual\s*\/\s*actual/i.test(targetText)) return 'Actual/Actual';
-  if (/30\s*\/\s*360/i.test(targetText)) return '30/360';
+  // Line-anchored label match
+  const lines = text.split(/\r?\n/);
+  for (const line of lines) {
+    const labelMatch = line.match(/^\s*(?:day\s+count(?:\s+convention)?|interest\s+calculation|convention)\s*[:\-]\s*(.*)$/i);
+    if (labelMatch) {
+      const targetText = labelMatch[1].trim();
+      if (/actual\s*\/\s*365/i.test(targetText)) return 'Actual/365';
+      if (/actual\s*\/\s*360/i.test(targetText)) return 'Actual/360';
+      if (/actual\s*\/\s*actual/i.test(targetText)) return 'Actual/Actual';
+      if (/30\s*\/\s*360/i.test(targetText)) return '30/360';
+    }
+  }
 
   return 'unknown';
 }
