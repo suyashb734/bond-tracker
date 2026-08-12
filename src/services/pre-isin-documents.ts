@@ -47,9 +47,35 @@ export async function syncPreIsinPublicIssueDocuments(): Promise<SyncPreIsinDocR
 
       if (!res.ok) continue;
 
-      const arrayBuf = await res.arrayBuffer();
-      const pdfBuf = Buffer.from(arrayBuf);
-      if (pdfBuf.length < 100) continue;
+      let pdfBuf: Buffer;
+      let finalDocUrl = url;
+
+      const contentType = res.headers.get('content-type') || '';
+      const initialBuf = Buffer.from(await res.arrayBuffer());
+
+      if (contentType.includes('text/html') || initialBuf.toString('utf8', 0, 500).includes('<html')) {
+        // Extract real PDF attachment link from SEBI HTML landing page
+        const html = initialBuf.toString('utf8');
+        const pdfLinkMatch = html.match(/(?:href=["'])(https?:[^\s"']+\.pdf|\/sebi_data\/attachdocs[^\s"']+\.pdf)/i) ||
+                             html.match(/(https?:\/\/[^\s"']+\.pdf)/i);
+
+        if (!pdfLinkMatch) continue;
+
+        let pdfUrl = pdfLinkMatch[1];
+        if (pdfUrl.startsWith('/')) {
+          pdfUrl = `https://www.sebi.gov.in${pdfUrl}`;
+        }
+        finalDocUrl = pdfUrl;
+
+        const pdfRes = await fetch(pdfUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; BondTracker/1.0)' } });
+        if (!pdfRes.ok) continue;
+
+        pdfBuf = Buffer.from(await pdfRes.arrayBuffer());
+      } else {
+        pdfBuf = initialBuf;
+      }
+
+      if (pdfBuf.length < 100 || !pdfBuf.toString('utf8', 0, 10).startsWith('%PDF')) continue;
 
       const hash = createHash('sha256').update(pdfBuf).digest('hex');
       const docId = `ISSUE-DOC-${hash.substring(0, 16).toUpperCase()}`;
