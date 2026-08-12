@@ -68,7 +68,7 @@ export async function runLoopingBondMasterSync() {
     try {
       const sebiRes = await syncSebiPublicIssues();
       console.log(`  - SEBI Sync: ${sebiRes.sync_status}, ${sebiRes.synced_count} draft issues.`);
-      if (sebiRes.sync_status === 'live_fetch_failed') sourceFailures++;
+      if (sebiRes.sync_status !== 'ok' || sebiRes.synced_count === 0) sourceFailures++;
     } catch (e: any) {
       sourceFailures++;
       console.error(`  - SEBI Sync Error: ${e.message}`);
