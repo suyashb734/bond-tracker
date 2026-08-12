@@ -28,7 +28,7 @@ export async function runLoopingBondMasterSync() {
     try {
       const cdslRes = await syncDepositoryMaster();
       console.log(`  - CDSL Sync: ${cdslRes.sync_status}, ${cdslRes.synced_count} items.`);
-      if (cdslRes.sync_status !== 'ok' || cdslRes.synced_count === 0) sourceFailures++;
+      if (cdslRes.source_scope !== 'full' || cdslRes.sync_status !== 'ok' || cdslRes.synced_count === 0) sourceFailures++;
     } catch (e: any) {
       sourceFailures++;
       console.error(`  - CDSL Sync Error: ${e.message}`);
