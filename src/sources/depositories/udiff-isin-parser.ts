@@ -59,9 +59,10 @@ export function parseUdiffIsinCsv(csvContent: string, provider: 'cdsl_udiff' | '
     }
 
     // Keep debt, NCD, CP, debenture, and bond securities
-    const isDebtType = !instType ||
-      /DEBT|NCD|BOND|DEB|CP/.test(instType) ||
-      /\bNCD\b|DEBENTURE|\BBOND\b|NON[- ]CONVERTIBLE/i.test(desc);
+    const hasDebtCode = Boolean(instType && /DEBT|NCD|BOND|DEB|CP/.test(instType));
+    const hasDebtDesc = /\bNCD\b|DEBENTURE|\bBOND\b|NON[- ]CONVERTIBLE|COMMERCIAL PAPER/i.test(desc);
+
+    const isDebtType = instType ? (hasDebtCode || hasDebtDesc) : hasDebtDesc;
 
     if (!isDebtType) continue;
 

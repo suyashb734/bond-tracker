@@ -49,6 +49,16 @@ CDSL,000001,2,INE999A04010,COMPANY PREF,REDEEMABLE PREFERENCE SHARES,1001,SOME C
     expect(rows[0].issuer_name).toBe('GOVERNMENT OF MAHARASHTRA');
   });
 
+  it('matches space-padded BOND descriptions and rejects blank instrument-type non-debt rows', () => {
+    const csv = `Src,CntrlSctiesDpstryPtcpt,LineNb,ISIN,ISINShrtNm,ISINDesc,IssrOrgId,IssrOrgNm,FinInstrmTp,SctySts,BookgBsis,IsseDt,Regar,RegarNm,SEBIRgnFrDt,SEBIRgnToDt,CntctNm,CntctDesg,ISINShrNm,ISINScndNm,ISINLastNm,ISINPstlAdr1,ISINPstlAdr2,ISINPstlAdr3,ISINCity,ISINCtrySubDvsn,ISINCtry,ISINPstCd,ISINPhneNb1,ISINPhneNb2,ISINFaxNb,ISINEmailAdr,MtrtyDt,ConvsDt,DcmlAllwd,DmtrlsdRegdScties,RmtrlsdRegdScties,ClssfctnFinInstrm,ParVal,PdAmt
+CDSL,000001,1,INE002A07809,RELIANCE BOND,RELIANCE 8.75% BOND 2028,1001,RELIANCE INDUSTRIES LIMITED,,ACT,DFT,2020-01-01,101,LINK INTIME,,,MR. X,CS,LINK INTIME,,,ADDR1,ADDR2,ADDR3,MUMBAI,MAHARASHTRA,INDIA,400001,022-1234,022-1234,022-1234,info@example.com,2028-01-01,,NA,NO,NO,LST,100000.000,100000.000
+CDSL,000001,2,INE999A01010,SOME COMPANY,SOME OTHER UNRELATED ITEM,1001,SOME COMPANY LIMITED,,ACT,DFT,2020-01-01,101,LINK INTIME,,,MR. X,CS,LINK INTIME,,,ADDR1,ADDR2,ADDR3,MUMBAI,MAHARASHTRA,INDIA,400001,022-1234,022-1234,022-1234,info@example.com,2025-01-01,,NA,NO,NO,LST,100.000,100.000`;
+
+    const rows = parseUdiffIsinCsv(csv, 'cdsl_udiff');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].isin).toBe('INE002A07809');
+  });
+
   it('ingests UDiFF rows into bond_instruments and logs source observations', () => {
     const csv = `Src,CntrlSctiesDpstryPtcpt,LineNb,ISIN,ISINShrtNm,ISINDesc,IssrOrgId,IssrOrgNm,FinInstrmTp,SctySts,BookgBsis,IsseDt,Regar,RegarNm,SEBIRgnFrDt,SEBIRgnToDt,CntctNm,CntctDesg,ISINShrNm,ISINScndNm,ISINLastNm,ISINPstlAdr1,ISINPstlAdr2,ISINPstlAdr3,ISINCity,ISINCtrySubDvsn,ISINCtry,ISINPstCd,ISINPhneNb1,ISINPhneNb2,ISINFaxNb,ISINEmailAdr,MtrtyDt,ConvsDt,DcmlAllwd,DmtrlsdRegdScties,RmtrlsdRegdScties,ClssfctnFinInstrm,ParVal,PdAmt
 NSDL,000001,1,INE101Q07BU7,MUTHOOT DEBT 28,MUTHOOT NCD 2028,1002,MUTHOOT FINANCE LIMITED,DEBT,ACT,DFT,2021-01-13,101,LINK INTIME INDIA PRIVATE LIMITED,,,MR. Y,CS,LINK INTIME,,,ADDR1,ADDR2,ADDR3,KOCHI,KERALA,INDIA,682018,0484-1234,0484-1234,0484-1234,info@muthoot.com,2028-01-13,,NA,NO,NO,LST,10000.000,10000.000`;
