@@ -17,11 +17,13 @@ export function parseNsdlMasterText(content: string): NsdlMasterRow[] {
 
   const lines = content.split(/\r?\n/);
   for (const line of lines) {
-    const clean = line.trim();
-    if (!clean) continue;
+    if (!line || line.trim() === '') continue;
+
+    // Preserve exact raw line without line-ending characters
+    const exactRawLine = line.replace(/\r?\n$/, '');
 
     // Split quote-aware parts
-    const parts = parseQuoteAwareLine(clean);
+    const parts = parseQuoteAwareLine(exactRawLine);
     if (parts.length < 2) continue;
 
     // Find the part that is an exact 12-character Indian ISIN
@@ -37,7 +39,7 @@ export function parseNsdlMasterText(content: string): NsdlMasterRow[] {
 
     let company = nonIsinParts.length > 0 ? nonIsinParts[0].trim() : '';
     if (!company || company.length < 2) {
-      company = clean.replace(isin, '').replace(/^[,|\t"'\s]+|[,|\t"'\s]+$/g, '').trim();
+      company = exactRawLine.replace(isin, '').replace(/^[,|\t"'\s]+|[,|\t"'\s]+$/g, '').trim();
     }
     if (!company || company.length < 2) company = 'NSDL ADMITTED ISSUER';
 
@@ -48,7 +50,7 @@ export function parseNsdlMasterText(content: string): NsdlMasterRow[] {
       allotment_date: null,
       maturity_date: null,
       face_value: null,
-      raw_payload: clean
+      raw_payload: exactRawLine
     });
   }
 
