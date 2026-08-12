@@ -30,7 +30,7 @@ export function parseNsdlMasterText(content: string): NsdlMasterRow[] {
 
     let company = '';
     // Find the part that contains the ISIN and extract the company name from other parts
-    const nonIsinParts = parts.filter((p) => p.toUpperCase() !== isin && !/^DEBT|NCD|BOND|CP|EQTY|PREF$/i.test(p.trim()));
+    const nonIsinParts = parts.filter((p) => p.toUpperCase() !== isin && !/^(DEBT|NCD|BOND|CP|EQTY|PREF)$/i.test(p.trim()));
 
     if (nonIsinParts.length > 0) {
       company = nonIsinParts[0].trim();

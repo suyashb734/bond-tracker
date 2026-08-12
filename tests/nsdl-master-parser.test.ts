@@ -21,6 +21,15 @@ describe('NSDL Master Directory Parser', () => {
     expect(rows[0].company_name).toBe('TATA MOTORS, LIMITED');
   });
 
+  it('correctly parses company names that contain NCD, BOND, or CP as substrings', () => {
+    const content = `INE001A07015|NCDEX LIMITED|DEBT`;
+    const rows = parseNsdlMasterText(content);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].isin).toBe('INE001A07015');
+    expect(rows[0].company_name).toBe('NCDEX LIMITED');
+  });
+
   it('ingests NSDL rows into bond_instruments and logs source observations', () => {
     const content = `INE999Z07999|TEST NSDL ISSUER|DEBT`;
     const rows = parseNsdlMasterText(content);
