@@ -19,17 +19,29 @@ export function parseNsdlMasterText(content: string): NsdlMasterRow[] {
     const clean = line.trim();
     if (!clean) continue;
 
-    // Matches NSDL pipes, commas, or fixed-width lines containing valid Indian ISINs
+    // Matches valid Indian ISINs (INE, IN1-IN4, INS, IN8, IN0)
     const isinMatch = clean.match(/\b(IN[A-Z0-9]{10})\b/i);
     if (!isinMatch) continue;
 
     const isin = isinMatch[1].toUpperCase();
 
-    // Extract company/issuer name if available
-    const parts = clean.split(/[,|\t]+/);
-    const company = parts.length >= 2 ? parts[1].replace(/["']/g, '').trim() : 'NSDL ADMITTED ISSUER';
+    // Quote-aware splitting
+    const parts = parseQuoteAwareLine(clean);
 
-    if (company.length < 2) continue;
+    let company = '';
+    // Find the part that contains the ISIN and extract the company name from other parts
+    const nonIsinParts = parts.filter((p) => p.toUpperCase() !== isin && !/^DEBT|NCD|BOND|CP|EQTY|PREF$/i.test(p.trim()));
+
+    if (nonIsinParts.length > 0) {
+      company = nonIsinParts[0].trim();
+    } else {
+      // Fixed-width fallback: strip ISIN from string
+      company = clean.replace(isin, '').replace(/^[,|\t"'\s]+|[,|\t"'\s]+$/g, '').trim();
+    }
+
+    if (!company || company.length < 2) {
+      company = 'NSDL ADMITTED ISSUER';
+    }
 
     rows.push({
       isin,
@@ -42,6 +54,26 @@ export function parseNsdlMasterText(content: string): NsdlMasterRow[] {
   }
 
   return rows;
+}
+
+function parseQuoteAwareLine(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if ((char === ',' || char === '|' || char === '\t') && !inQuotes) {
+      result.push(current.trim().replace(/^["']|["']$/g, ''));
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  result.push(current.trim().replace(/^["']|["']$/g, ''));
+  return result.filter((p) => p.length > 0);
 }
 
 export function ingestNsdlMasterRows(rows: NsdlMasterRow[], rawPayload: string): number {

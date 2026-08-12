@@ -12,6 +12,15 @@ describe('NSDL Master Directory Parser', () => {
     expect(rows[0].company_name).toBe('HOUSING DEVELOPMENT FINANCE CORPORATION LIMITED');
   });
 
+  it('handles reverse column order and quoted commas correctly', () => {
+    const content = `"TATA MOTORS, LIMITED",INE001A07015,DEBT`;
+    const rows = parseNsdlMasterText(content);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].isin).toBe('INE001A07015');
+    expect(rows[0].company_name).toBe('TATA MOTORS, LIMITED');
+  });
+
   it('ingests NSDL rows into bond_instruments and logs source observations', () => {
     const content = `INE999Z07999|TEST NSDL ISSUER|DEBT`;
     const rows = parseNsdlMasterText(content);
