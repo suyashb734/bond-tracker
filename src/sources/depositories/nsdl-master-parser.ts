@@ -20,18 +20,24 @@ export function parseNsdlMasterText(content: string): NsdlMasterRow[] {
     const clean = line.trim();
     if (!clean) continue;
 
-    const isinMatch = clean.match(/\b(IN[A-Z0-9]{10})\b/i);
-    if (!isinMatch) continue;
-
-    const isin = isinMatch[1].toUpperCase();
+    // Split quote-aware parts
     const parts = parseQuoteAwareLine(clean);
+    if (parts.length < 2) continue;
+
+    // Find the part that is an exact 12-character Indian ISIN
+    const isinPartIndex = parts.findIndex((p) => /^IN[A-Z0-9]{10}$/i.test(p.trim()));
+    if (isinPartIndex === -1) continue;
+
+    const isin = parts[isinPartIndex].trim().toUpperCase();
+
+    // Extract company name from the non-ISIN parts
     const nonIsinParts = parts.filter(
-      (p) => p.toUpperCase() !== isin && !/^(DEBT|NCD|BOND|CP|EQTY|PREF)$/i.test(p.trim())
+      (_, idx) => idx !== isinPartIndex && !/^(DEBT|NCD|BOND|CP|EQTY|PREF)$/i.test(parts[idx].trim())
     );
 
     let company = nonIsinParts.length > 0 ? nonIsinParts[0].trim() : '';
     if (!company || company.length < 2) {
-      company = clean.replace(isinMatch[1], '').replace(/^[,|\t"'\s]+|[,|\t"'\s]+$/g, '').trim();
+      company = clean.replace(isin, '').replace(/^[,|\t"'\s]+|[,|\t"'\s]+$/g, '').trim();
     }
     if (!company || company.length < 2) company = 'NSDL ADMITTED ISSUER';
 
@@ -74,6 +80,7 @@ export function ingestNsdlMasterRows(rows: NsdlMasterRow[], rawPayload: string, 
 
   initDatabase();
   const db = getDatabase();
+
   const upsertStmt = db.prepare(`
     INSERT INTO bond_instruments (isin, issuer_name, source_provider, updated_at)
     VALUES (?, ?, 'nsdl_master', CURRENT_TIMESTAMP)
