@@ -24,39 +24,41 @@ export async function runLoopingBondMasterSync() {
 
     let sourceFailures = 0;
 
-    // 1. CDSL Depository Sync
+    // 1. CDSL Depository Sync (expected >0 rows)
     try {
       const cdslRes = await syncDepositoryMaster();
       console.log(`  - CDSL Sync: ${cdslRes.sync_status}, ${cdslRes.synced_count} items.`);
-      if (cdslRes.sync_status === 'live_fetch_failed') sourceFailures++;
+      if (cdslRes.sync_status !== 'ok' || cdslRes.synced_count === 0) sourceFailures++;
     } catch (e: any) {
       sourceFailures++;
       console.error(`  - CDSL Sync Error: ${e.message}`);
     }
 
-    // 2. NSDL Debt Master Sync
+    // 2. NSDL Debt Master Sync (expected >0 rows)
     try {
       const nsdlRes = await syncNsdlMaster();
       console.log(`  - NSDL Sync: ${nsdlRes.sync_status}, ingested ${nsdlRes.ingested_rows} rows.`);
-      if (nsdlRes.sync_status === 'live_fetch_failed') sourceFailures++;
+      if (nsdlRes.sync_status !== 'ok' || nsdlRes.ingested_rows === 0) sourceFailures++;
     } catch (e: any) {
       sourceFailures++;
       console.error(`  - NSDL Sync Error: ${e.message}`);
     }
 
-    // 3. NSE CBM & WDM Security Master Sync
+    // 3. NSE CBM & WDM Security Master Sync (expected >0 rows)
     try {
       const nseRes = await syncNseSecurityMasters();
       console.log(`  - NSE Sync: CBM ${nseRes.cbm_ingested} rows, WDM ${nseRes.wdm_ingested} rows.`);
+      if (nseRes.cbm_rows === 0 || nseRes.wdm_rows === 0) sourceFailures++;
     } catch (e: any) {
       sourceFailures++;
       console.error(`  - NSE Sync Error: ${e.message}`);
     }
 
-    // 4. BSE Public Bonds Workbook Sync
+    // 4. BSE Public Bonds Workbook Sync (expected >0 rows)
     try {
       const bseRes = await syncBsePublicBonds();
       console.log(`  - BSE Sync: ${bseRes.ingested_rows} rows.`);
+      if (bseRes.parsed_rows === 0) sourceFailures++;
     } catch (e: any) {
       sourceFailures++;
       console.error(`  - BSE Sync Error: ${e.message}`);
@@ -66,6 +68,7 @@ export async function runLoopingBondMasterSync() {
     try {
       const sebiRes = await syncSebiPublicIssues();
       console.log(`  - SEBI Sync: ${sebiRes.sync_status}, ${sebiRes.synced_count} draft issues.`);
+      if (sebiRes.sync_status === 'live_fetch_failed') sourceFailures++;
     } catch (e: any) {
       sourceFailures++;
       console.error(`  - SEBI Sync Error: ${e.message}`);
@@ -78,7 +81,7 @@ export async function runLoopingBondMasterSync() {
     console.log(`[Pass ${pass}] Initial ISINs: ${initialCount} -> Current ISINs: ${currentCount} (+${newInPass} new), source failures: ${sourceFailures}\n`);
 
     if (newInPass === 0 && sourceFailures === 0 && pass > 1) {
-      console.log(`[Convergence Reached] Complete pass with 0 new ISINs in Pass ${pass}.\n`);
+      console.log(`[Convergence Reached] Complete pass with 0 new ISINs and 0 source failures in Pass ${pass}.\n`);
       break;
     }
 
