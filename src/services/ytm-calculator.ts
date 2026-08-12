@@ -44,7 +44,7 @@ export function calculateCashflowYtm(input: YtmCalculationInput): YtmResult {
 
   // Newton-Raphson YTM Solver
   let y = 0.10; // Initial guess: 10% annual yield
-  const tolerance = 0.0001; // 0.01% yield convergence threshold
+  const tolerance = 0.0001; // 0.0001 = 0.01% = 1 basis point convergence threshold
   const maxIterations = 100;
   let iterations = 0;
   let converged = false;
