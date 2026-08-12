@@ -15,6 +15,13 @@ describe('Phase D deterministic term-sheet parser', () => {
     expect(parsed.sha256).toMatch(/^[a-f0-9]{64}$/);
   });
 
+  it('uses labeled line context so preceding marketing mentions do not override real payment frequency', async () => {
+    const fixture = Buffer.from('We provide monthly updates and annual reporting.\nPayment Frequency: Quarterly\nFace Value: 10,000');
+    const parsed = await parseTermSheetPdf(fixture);
+
+    expect(parsed.payout_frequency).toBe('quarterly');
+  });
+
   it('preserves unknown values when terms are absent', async () => {
     const parsed = await parseTermSheetPdf(Buffer.from('unrelated document content'));
     expect(parsed.face_value).toBeNull();

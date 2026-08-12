@@ -27,22 +27,15 @@ export async function parseTermSheetPdf(pdfBuffer: Buffer): Promise<ParsedTermSh
     text = pdfBuffer.toString('utf8');
   }
 
-  const faceValue = firstAmount(text, /(?:face value|nominal value|par value)\s*[:\-]?\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d+)?)/i);
-  const coupon = firstNumber(text, /(?:coupon rate|interest rate)\s*[:\-]?\s*([\d]+(?:\.\d+)?)\s*%/i);
-  const maturity = firstDate(text, /(?:date of maturity|maturity date|redemption date)\s*[:\-]?\s*([^\n;,]+)/i);
+  const faceValue = extractLabeledAmount(text, /(?:face value|nominal value|par value|issue price)\s*[:\-]?\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d+)?)/i);
+  const coupon = extractLabeledNumber(text, /(?:coupon rate|interest rate|coupon)\s*[:\-]?\s*([\d]+(?:\.\d+)?)\s*%/i);
+  const maturity = extractLabeledDate(text, /(?:date of maturity|maturity date|redemption date)\s*[:\-]?\s*([^\n;,]+)/i);
 
-  let frequency: ParsedTermSheet['payout_frequency'] = 'unknown';
-  if (/monthly|twelve times/i.test(text)) frequency = 'monthly';
-  else if (/quarterly|four times/i.test(text)) frequency = 'quarterly';
-  else if (/semi[- ]annual|twice/i.test(text)) frequency = 'semi_annually';
-  else if (/annual|once a year/i.test(text)) frequency = 'annually';
-  else if (/cumulative|no periodic interest/i.test(text)) frequency = 'cumulative';
+  // Extract payout frequency relative to explicit payout/interest payment labels
+  const frequency = extractLabeledFrequency(text);
 
-  let dayCount: ParsedTermSheet['day_count_convention'] = 'unknown';
-  if (/actual\s*\/\s*365/i.test(text)) dayCount = 'Actual/365';
-  else if (/actual\s*\/\s*360/i.test(text)) dayCount = 'Actual/360';
-  else if (/actual\s*\/\s*actual/i.test(text)) dayCount = 'Actual/Actual';
-  else if (/30\s*\/\s*360/i.test(text)) dayCount = '30/360';
+  // Extract day count convention relative to day count labels
+  const dayCount = extractLabeledDayCount(text);
 
   return {
     sha256,
@@ -57,23 +50,48 @@ export async function parseTermSheetPdf(pdfBuffer: Buffer): Promise<ParsedTermSh
   };
 }
 
-function firstAmount(text: string, regex: RegExp): number | null {
+function extractLabeledAmount(text: string, regex: RegExp): number | null {
   const match = text.match(regex);
   if (!match) return null;
   const value = Number(match[1].replace(/,/g, ''));
   return Number.isFinite(value) ? value : null;
 }
 
-function firstNumber(text: string, regex: RegExp): number | null {
+function extractLabeledNumber(text: string, regex: RegExp): number | null {
   const match = text.match(regex);
   if (!match) return null;
   const value = Number(match[1]);
   return Number.isFinite(value) ? value : null;
 }
 
-function firstDate(text: string, regex: RegExp): string | null {
+function extractLabeledDate(text: string, regex: RegExp): string | null {
   const match = text.match(regex);
   return match ? normalizeDate(match[1]) : null;
+}
+
+function extractLabeledFrequency(text: string): ParsedTermSheet['payout_frequency'] {
+  const labelMatch = text.match(/(?:frequency|interest payment|payout frequency|coupon payment)\s*[:\-]?\s*([^\n;,]+)/i);
+  const targetText = labelMatch ? labelMatch[1] : text;
+
+  if (/monthly|twelve times/i.test(targetText)) return 'monthly';
+  if (/quarterly|four times/i.test(targetText)) return 'quarterly';
+  if (/semi[- ]annual|twice/i.test(targetText)) return 'semi_annually';
+  if (/annually|once a year/i.test(targetText)) return 'annually';
+  if (/cumulative|no periodic interest/i.test(targetText)) return 'cumulative';
+
+  return 'unknown';
+}
+
+function extractLabeledDayCount(text: string): ParsedTermSheet['day_count_convention'] {
+  const labelMatch = text.match(/(?:day count|interest calculation|convention)\s*[:\-]?\s*([^\n;,]+)/i);
+  const targetText = labelMatch ? labelMatch[1] : text;
+
+  if (/actual\s*\/\s*365/i.test(targetText)) return 'Actual/365';
+  if (/actual\s*\/\s*360/i.test(targetText)) return 'Actual/360';
+  if (/actual\s*\/\s*actual/i.test(targetText)) return 'Actual/Actual';
+  if (/30\s*\/\s*360/i.test(targetText)) return '30/360';
+
+  return 'unknown';
 }
 
 function normalizeDate(raw: string): string | null {
