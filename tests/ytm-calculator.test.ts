@@ -72,6 +72,8 @@ describe('Newton-Raphson YTM Calculator', () => {
 
     expect(resultActual360.converged).toBe(true);
     expect(resultActual360.day_count_used).toBe('Actual/360');
+    // For 365 calendar days under Actual/360 (year fraction = 365/360 = 1.01389), YTM is ~9.86%
+    expect(resultActual360.ytm_annual_percentage).toBeCloseTo(9.86, 1);
 
     const result30360 = calculateCashflowYtm({
       settlement_date: settlement,

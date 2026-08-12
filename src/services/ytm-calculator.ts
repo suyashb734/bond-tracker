@@ -35,7 +35,7 @@ export function calculateCashflowYtm(input: YtmCalculationInput): YtmResult {
       const totalAmount = cf.gross_coupon_per_unit + cf.principal_redemption_per_unit;
       return { dueMs, yearFraction, totalAmount };
     })
-    .filter((cf) => !isNaN(cf.dueMs) && cf.dueMs > settlementMs && cf.totalAmount > 0)
+    .filter((cf) => !isNaN(cf.dueMs) && cf.dueMs > settlementMs && Number.isFinite(cf.totalAmount) && cf.totalAmount > 0)
     .sort((a, b) => a.yearFraction - b.yearFraction);
 
   if (futureFlows.length === 0) {
