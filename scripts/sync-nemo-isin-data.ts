@@ -1,6 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { closeDatabase, getDatabase, initDatabase } from '../src/db/index.js';
@@ -62,7 +61,7 @@ export async function syncNemoIsinData(): Promise<NemoSyncResult> {
     }
   }
 
-  console.log(`[Nemo Sync] Extracting active debt ISINs from ${localDbPath}...`);
+  console.log(`[Nemo Sync] Extracting strict active debt ISINs from ${localDbPath}...`);
 
   const pythonQuery = `
 import sqlite3, json, sys
@@ -74,7 +73,8 @@ query = """
     SELECT isin, issuer_name, description, security_type_name, interest_rate, maturity_date
     FROM isin
     WHERE status = 'ACTIVE'
-      AND (security_type_name LIKE '%DEBT%'
+      AND (
+        security_type_name LIKE '%DEBT%'
         OR security_type_name LIKE '%BOND%'
         OR security_type_name LIKE '%DEBENTURE%'
         OR security_type_name LIKE '%COMMERCIAL PAPER%'
@@ -83,8 +83,11 @@ query = """
         OR security_type_name LIKE '%CERTIFICATE OF DEPOSIT%'
         OR security_type_name LIKE '%TREASURY BILLS%'
         OR security_type_name LIKE '%SOVEREIGN GOLD BOND%'
-        OR isin LIKE 'INE%05%' OR isin LIKE 'INE%07%' OR isin LIKE 'INE%08%' OR isin LIKE 'INE%14%' OR isin LIKE 'INE%15%' OR isin LIKE 'INE%16%' OR isin LIKE 'INE%18%'
-        OR isin LIKE 'INS%' OR isin LIKE 'IN00%' OR isin LIKE 'IN10%' OR isin LIKE 'IN20%' OR isin LIKE 'IN30%')
+      )
+      AND (security_type_name NOT LIKE '%EQUITY%')
+      AND (security_type_name NOT LIKE '%PREFERENCE%')
+      AND (security_type_name NOT LIKE '%MUTUAL FUND%')
+      AND (security_type_name NOT LIKE '%WARRANT%')
 """
 
 rows = c.execute(query).fetchall()
@@ -125,6 +128,14 @@ c.close()
     return { sync_status: 'ok_zero_results', fetched_active_debt_rows: 0, ingested_rows: 0, total_instruments: total, release_tag: releaseTag };
   }
 
+  // Purge previously ingested nemo_isin_github observations and single-source nemo instruments to clean equity pollution
+  db.transaction(() => {
+    db.prepare("DELETE FROM bond_source_observations WHERE source_provider = 'nemo_isin_github'").run();
+    db.prepare("DELETE FROM bond_instruments WHERE source_provider = 'nemo_isin_github'").run();
+    db.prepare("UPDATE bond_instruments SET source_provider = REPLACE(source_provider, ',nemo_isin_github', '') WHERE source_provider LIKE '%,nemo_isin_github'").run();
+    db.prepare("UPDATE bond_instruments SET source_provider = REPLACE(source_provider, 'nemo_isin_github,', '') WHERE source_provider LIKE 'nemo_isin_github,%'").run();
+  })();
+
   const upsertStmt = db.prepare(`
     INSERT INTO bond_instruments (isin, issuer_name, maturity_date, source_provider, updated_at)
     VALUES (?, ?, ?, 'nemo_isin_github', CURRENT_TIMESTAMP)
@@ -156,7 +167,7 @@ c.close()
         isin: cleanIsin,
         source_provider: 'nemo_isin_github',
         source_url: downloadUrl,
-        parser_version: 'nemo-sqlite-v1',
+        parser_version: 'nemo-sqlite-v2-strict',
         raw_payload: rawLine
       });
 
@@ -167,7 +178,7 @@ c.close()
   tx();
 
   const total = (db.prepare('SELECT COUNT(*) AS c FROM bond_instruments').get() as { c: number }).c;
-  console.log(`[Nemo Sync] Complete! Ingested ${ingested} active debt ISINs from ${releaseTag}. Total catalog: ${total}`);
+  console.log(`[Nemo Sync] Complete! Ingested ${ingested} strict active debt ISINs from ${releaseTag}. Total catalog: ${total}`);
 
   return {
     sync_status: 'ok',
