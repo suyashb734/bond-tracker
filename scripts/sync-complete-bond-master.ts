@@ -3,6 +3,7 @@ import { syncDepositoryMaster } from './sync-depository-master.js';
 import { syncNsdlMaster } from './sync-nsdl-master.js';
 import { syncNseSecurityMasters } from './sync-nse-security-masters.js';
 import { syncBsePublicBonds } from './sync-bse-public-bonds.js';
+import { syncNemoIsinData } from './sync-nemo-isin-data.js';
 import { syncSebiPublicIssues } from './sync-sebi-public-issues.js';
 import { generateNationalCoverageReport } from '../src/services/coverage-report.js';
 
@@ -62,6 +63,16 @@ export async function runLoopingBondMasterSync() {
     } catch (e: any) {
       sourceFailures++;
       console.error(`  - BSE Sync Error: ${e.message}`);
+    }
+
+    // 5. Nemo Open-Source ISIN Release Sync (expected >0 rows)
+    try {
+      const nemoRes = await syncNemoIsinData();
+      console.log(`  - Nemo Sync: ${nemoRes.sync_status}, ingested ${nemoRes.ingested_rows} rows from ${nemoRes.release_tag}.`);
+      if (nemoRes.sync_status !== 'ok' || nemoRes.ingested_rows === 0) sourceFailures++;
+    } catch (e: any) {
+      sourceFailures++;
+      console.error(`  - Nemo Sync Error: ${e.message}`);
     }
 
     // 5. SEBI Draft Debt Offerings Sync
