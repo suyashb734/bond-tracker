@@ -21,7 +21,6 @@ export function backfillSecurityTypes(): { total_updated: number; breakdown: Rec
     SET security_type = 'COMMERCIAL_PAPER'
     WHERE SUBSTR(isin, 8, 2) = '14'
       AND source_provider != 'manual_curation'
-      AND (security_type IS NULL OR security_type = 'CORPORATE_BOND' OR security_type = 'UNKNOWN')
   `);
 
   const updateCdStmt = db.prepare(`
@@ -29,7 +28,6 @@ export function backfillSecurityTypes(): { total_updated: number; breakdown: Rec
     SET security_type = 'CERTIFICATE_OF_DEPOSIT'
     WHERE SUBSTR(isin, 8, 2) = '16'
       AND source_provider != 'manual_curation'
-      AND (security_type IS NULL OR security_type = 'CORPORATE_BOND' OR security_type = 'UNKNOWN')
   `);
 
   const updateSecuritisedStmt = db.prepare(`
@@ -37,10 +35,9 @@ export function backfillSecurityTypes(): { total_updated: number; breakdown: Rec
     SET security_type = 'SECURITISED_DEBT'
     WHERE SUBSTR(isin, 8, 2) IN ('15', '18')
       AND source_provider != 'manual_curation'
-      AND (security_type IS NULL OR security_type = 'CORPORATE_BOND' OR security_type = 'UNKNOWN')
   `);
 
-  // Reset misclassified Equity/Corporate ISINs where position is 07 (Bond)
+  // Reset bonds where position is 07 (Bond)
   const resetBondsStmt = db.prepare(`
     UPDATE bond_instruments
     SET security_type = 'CORPORATE_BOND'
@@ -70,7 +67,9 @@ export function backfillSecurityTypes(): { total_updated: number; breakdown: Rec
     breakdown[row.security_type ?? 'UNKNOWN'] = row.c;
   }
 
-  return { total_updated: updated, breakdown };
+  const totalClassified = Object.values(breakdown).reduce((a, b) => a + b, 0);
+
+  return { total_updated: totalClassified, breakdown };
 }
 
 if (process.argv[1] && process.argv[1].includes('backfill-security-types')) {
