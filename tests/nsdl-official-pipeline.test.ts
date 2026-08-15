@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os';
 
 const execFileSyncMock = vi.hoisted(() => vi.fn());
 vi.mock('node:child_process', () => ({ execFileSync: execFileSyncMock }));
-import { closeDatabase, initDatabase } from '../src/db/index.js';
+
+import { closeDatabase, getDatabase, initDatabase } from '../src/db/index.js';
 import { extractNsdlAssetLinksFromNextJs, runOfficialNsdlPipeline } from '../src/sources/depositories/nsdl-official-pipeline.js';
 
 describe('Official NSDL Multi-Asset Pipeline', () => {
@@ -25,18 +26,26 @@ describe('Official NSDL Multi-Asset Pipeline', () => {
     vi.restoreAllMocks();
   });
 
-  it('extracts NSDL asset links from Next.js stream HTML correctly', () => {
+  it('extracts NSDL asset links from Next.js stream HTML correctly with activeSecurities as securitised', () => {
     const mockHtml = `
-      self.__next_f.push([1,"\\"debtInstrumentDataSet\\":[{\\"file_name\\":\\"Debt List\\",\\"field_file\\":\\"/nsdl/2026-08/Debt_Test.xls\\"}]"]);
+      self.__next_f.push([1,"\\"debtInstrumentDataSet\\":[{\\"file_name\\":\\"Debt List\\",\\"field_file\\":\\"/nsdl/2026-08/Debt_Test.xls\\"}],\\"activeSecuritiesDataSet\\":[{\\"file_name\\":\\"Securitised List\\",\\"field_file\\":\\"/nsdl/2026-08/Securitised_Test.xlsx\\"}]"]);
     `;
 
     const links = extractNsdlAssetLinksFromNextJs(mockHtml);
-    expect(links.length).toBe(1);
+    expect(links.length).toBe(2);
     expect(links[0].type).toBe('debt');
-    expect(links[0].url).toBe('https://nsdl.com/nsdl/2026-08/Debt_Test.xls');
+    expect(links[1].type).toBe('securitised');
+    expect(links[1].url).toBe('https://nsdl.com/nsdl/2026-08/Securitised_Test.xlsx');
   });
 
-  it('runs official pipeline and ingests NSDL assets cleanly', async () => {
+  it('runs official pipeline, respects pre-existing manual curation, and ingests NSDL assets cleanly', async () => {
+    const db = getDatabase();
+    // Seed pre-existing manual curation row
+    db.prepare(`
+      INSERT INTO bond_instruments (isin, issuer_name, security_type, lifecycle_status, source_provider)
+      VALUES ('INE001A07015', 'PRE_CURATED_NAME', 'CERTIFICATE_OF_DEPOSIT', 'DEFAULTED', 'manual_curation')
+    `).run();
+
     const mockPageHtml = (`\n      self.__next_f.push([1,"\\"debtInstrumentDataSet\\":[{\\"file_name\\":\\"Debt List\\",\\"field_file\\":\\"/nsdl/2026-08/Debt_Test.xls\\"}]"]);\n    `).padEnd(600, ' ');
 
     const mockTsv = [
@@ -59,5 +68,10 @@ describe('Official NSDL Multi-Asset Pipeline', () => {
     const res = await runOfficialNsdlPipeline();
     expect(res.sync_status).toBe('ok');
     expect(res.debt_instruments_parsed).toBeGreaterThan(0);
+
+    // Verify manual_curation security_type and DEFAULTED lifecycle status were preserved
+    const checkRow = db.prepare('SELECT security_type, lifecycle_status FROM bond_instruments WHERE isin = ?').get('INE001A07015') as { security_type: string; lifecycle_status: string };
+    expect(checkRow.security_type).toBe('CERTIFICATE_OF_DEPOSIT');
+    expect(checkRow.lifecycle_status).toBe('DEFAULTED');
   });
 });

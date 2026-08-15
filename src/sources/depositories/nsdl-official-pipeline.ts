@@ -11,6 +11,7 @@ export type NsdlPipelineResult = {
   debt_instruments_parsed: number;
   cp_parsed: number;
   cd_parsed: number;
+  securitised_parsed: number;
   defaulted_parsed: number;
   total_ingested: number;
   source_urls: string[];
@@ -32,6 +33,7 @@ export async function runOfficialNsdlPipeline(): Promise<NsdlPipelineResult> {
         debt_instruments_parsed: 0,
         cp_parsed: 0,
         cd_parsed: 0,
+        securitised_parsed: 0,
         defaulted_parsed: 0,
         total_ingested: 0,
         source_urls: [pageUrl],
@@ -44,6 +46,7 @@ export async function runOfficialNsdlPipeline(): Promise<NsdlPipelineResult> {
     let debtParsed = 0;
     let cpParsed = 0;
     let cdParsed = 0;
+    let securitisedParsed = 0;
     let defaultedParsed = 0;
     let totalIngested = 0;
     const fetchedUrls: string[] = [pageUrl];
@@ -55,6 +58,7 @@ export async function runOfficialNsdlPipeline(): Promise<NsdlPipelineResult> {
         if (link.type === 'debt') debtParsed += assetRes.parsed;
         if (link.type === 'cp') cpParsed += assetRes.parsed;
         if (link.type === 'cd') cdParsed += assetRes.parsed;
+        if (link.type === 'securitised') securitisedParsed += assetRes.parsed;
         if (link.type === 'defaulted') defaultedParsed += assetRes.parsed;
         totalIngested += assetRes.ingested;
       }
@@ -65,6 +69,7 @@ export async function runOfficialNsdlPipeline(): Promise<NsdlPipelineResult> {
       debt_instruments_parsed: debtParsed,
       cp_parsed: cpParsed,
       cd_parsed: cdParsed,
+      securitised_parsed: securitisedParsed,
       defaulted_parsed: defaultedParsed,
       total_ingested: totalIngested,
       source_urls: fetchedUrls
@@ -75,6 +80,7 @@ export async function runOfficialNsdlPipeline(): Promise<NsdlPipelineResult> {
       debt_instruments_parsed: 0,
       cp_parsed: 0,
       cd_parsed: 0,
+      securitised_parsed: 0,
       defaulted_parsed: 0,
       total_ingested: 0,
       source_urls: [pageUrl],
@@ -85,7 +91,7 @@ export async function runOfficialNsdlPipeline(): Promise<NsdlPipelineResult> {
 
 export type NsdlAssetLink = {
   url: string;
-  type: 'debt' | 'cp' | 'cd' | 'defaulted' | 'other';
+  type: 'debt' | 'cp' | 'cd' | 'securitised' | 'defaulted' | 'other';
   label: string;
 };
 
@@ -96,7 +102,7 @@ export function extractNsdlAssetLinksFromNextJs(html: string): NsdlAssetLink[] {
     { key: 'debtInstrumentDataSet', type: 'debt' },
     { key: 'commercialDetailDataSet', type: 'cp' },
     { key: 'certificateOfDepositDataSet', type: 'cd' },
-    { key: 'activeSecuritiesDataSet', type: 'debt' },
+    { key: 'activeSecuritiesDataSet', type: 'securitised' },
     { key: 'debtListInstrumentDataSet', type: 'defaulted' }
   ];
 
@@ -186,6 +192,8 @@ function downloadAndIngestNsdlAsset(
       ? 'COMMERCIAL_PAPER'
       : link.type === 'cd'
       ? 'CERTIFICATE_OF_DEPOSIT'
+      : link.type === 'securitised'
+      ? 'SECURITISED_DEBT'
       : 'CORPORATE_BOND';
 
     const lifecycleStatus = link.type === 'defaulted' ? 'DEFAULTED' : 'ACTIVE';
@@ -212,8 +220,15 @@ function downloadAndIngestNsdlAsset(
               WHEN excluded.maturity_date IS NOT NULL THEN excluded.maturity_date
               ELSE bond_instruments.maturity_date
             END,
-            security_type = excluded.security_type,
-            lifecycle_status = excluded.lifecycle_status,
+            security_type = CASE
+              WHEN bond_instruments.source_provider = 'manual_curation' THEN bond_instruments.security_type
+              WHEN bond_instruments.security_type IS NULL OR bond_instruments.security_type = 'UNKNOWN' THEN excluded.security_type
+              ELSE excluded.security_type
+            END,
+            lifecycle_status = CASE
+              WHEN bond_instruments.lifecycle_status = 'DEFAULTED' AND excluded.lifecycle_status != 'DEFAULTED' THEN 'DEFAULTED'
+              ELSE excluded.lifecycle_status
+            END,
             source_provider = CASE
               WHEN bond_instruments.source_provider NOT LIKE '%nsdl_master%'
               THEN bond_instruments.source_provider || ',nsdl_master'
@@ -255,8 +270,15 @@ function downloadAndIngestNsdlAsset(
                 WHEN bond_instruments.issuer_name = 'UNKNOWN_ISSUER_STUB' OR excluded.issuer_name != 'UNKNOWN_ISSUER_STUB' THEN excluded.issuer_name
                 ELSE bond_instruments.issuer_name
               END,
-              security_type = excluded.security_type,
-              lifecycle_status = excluded.lifecycle_status,
+              security_type = CASE
+                WHEN bond_instruments.source_provider = 'manual_curation' THEN bond_instruments.security_type
+                WHEN bond_instruments.security_type IS NULL OR bond_instruments.security_type = 'UNKNOWN' THEN excluded.security_type
+                ELSE excluded.security_type
+              END,
+              lifecycle_status = CASE
+                WHEN bond_instruments.lifecycle_status = 'DEFAULTED' AND excluded.lifecycle_status != 'DEFAULTED' THEN 'DEFAULTED'
+                ELSE excluded.lifecycle_status
+              END,
               source_provider = CASE
                 WHEN bond_instruments.source_provider NOT LIKE '%nsdl_master%'
                 THEN bond_instruments.source_provider || ',nsdl_master'
