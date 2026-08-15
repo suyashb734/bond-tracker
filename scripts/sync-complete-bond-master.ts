@@ -1,5 +1,6 @@
 import { getDatabase, initDatabase } from '../src/db/index.js';
 import { runOfficialNsdlPipeline } from '../src/sources/depositories/nsdl-official-pipeline.js';
+import { syncDepositoryMaster } from './sync-depository-master.js';
 import { checkCdslFiledropSync } from './watch-cdsl-filedrop.js';
 import { syncNsdlMaster } from './sync-nsdl-master.js';
 import { syncNseSecurityMasters } from './sync-nse-security-masters.js';

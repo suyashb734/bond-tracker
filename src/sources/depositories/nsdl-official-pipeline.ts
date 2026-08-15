@@ -104,7 +104,7 @@ export function extractNsdlAssetLinksFromNextJs(html: string): NsdlAssetLink[] {
     const keyPos = html.indexOf(item.key);
     if (keyPos !== -1) {
       const bracketPos = html.indexOf('[', keyPos);
-      if (bracketPos !== -1 && bracketPos - keyPos < 30) {
+      if (bracketPos !== -1 && bracketPos - keyPos <= 30) {
         const closeBracketPos = html.indexOf(']', bracketPos);
         if (closeBracketPos !== -1) {
           const rawArrayStr = html.slice(bracketPos, closeBracketPos + 1);
@@ -112,8 +112,8 @@ export function extractNsdlAssetLinksFromNextJs(html: string): NsdlAssetLink[] {
             const cleanJson = rawArrayStr.replace(/\\"/g, '"');
             const items = JSON.parse(cleanJson);
             for (const it of items) {
-              const path = it.field_file || it.body;
-              if (path && typeof path === 'string' && path.length > 5) {
+              const path = it.field_file;
+              if (path && typeof path === 'string' && (/^https?:\/\//i.test(path) || /^\/(?!\/)/.test(path))) {
                 let fullUrl = path;
                 if (path.startsWith('/')) {
                   fullUrl = 'https://nsdl.com' + path;
@@ -153,6 +153,11 @@ function fetchUrlWithCurl(url: string): string | null {
   }
 }
 
+function isHtmlPayload(buffer: Buffer): boolean {
+  const head = buffer.subarray(0, 512).toString('utf8').trimStart().toLowerCase();
+  return head.startsWith('<!doctype html') || head.startsWith('<html') || head.includes('<html');
+}
+
 function downloadAndIngestNsdlAsset(
   link: NsdlAssetLink,
   rawDir: string
@@ -171,7 +176,7 @@ function downloadAndIngestNsdlAsset(
     if (!existsSync(tempFile)) return null;
 
     const buffer = readFileSync(tempFile);
-    if (buffer.length < 100) return null;
+    if (buffer.length < 100 || isHtmlPayload(buffer)) return null;
 
     const sha256 = createHash('sha256').update(buffer).digest('hex');
     const finalPath = join(rawDir, `nsdl_${link.type}_${sha256.slice(0, 12)}.${ext}`);
