@@ -59,7 +59,7 @@ export async function checkCdslFiledropSync(): Promise<{
     return { sync_status: 'no_valid_master_file', synced_count: 0, total_rows: count, source_scope: 'sample' };
   }
 
-  const rows = parseUdiffIsinCsv(fullContent, 'cdsl_master_official');
+  const rows = parseUdiffIsinCsv(fullContent, 'cdsl_udiff');
   if (rows.length === 0) {
     const count = (db.prepare('SELECT COUNT(*) AS c FROM bond_instruments').get() as { c: number }).c;
     return { sync_status: 'ok_zero_results', synced_count: 0, total_rows: count, source_scope: 'sample', file_processed: selectedFile };

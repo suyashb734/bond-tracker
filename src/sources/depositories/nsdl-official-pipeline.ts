@@ -182,7 +182,7 @@ function downloadAndIngestNsdlAsset(
     const finalPath = join(rawDir, `nsdl_${link.type}_${sha256.slice(0, 12)}.${ext}`);
     writeFileSync(finalPath, buffer);
 
-    if (link.type === 'debt' || link.type === 'cp') {
+    if (ext === 'tsv') {
       const text = buffer.toString('utf-8');
       const rows = parseNsdlMasterText(text);
 
@@ -193,11 +193,17 @@ function downloadAndIngestNsdlAsset(
           VALUES (?, ?, ?, ?, 'nsdl_master', CURRENT_TIMESTAMP)
           ON CONFLICT(isin) DO UPDATE SET
             issuer_name = CASE
-              WHEN bond_instruments.issuer_name = 'UNKNOWN_ISSUER_STUB' THEN excluded.issuer_name
+              WHEN bond_instruments.issuer_name = 'UNKNOWN_ISSUER_STUB' OR excluded.issuer_name != 'UNKNOWN_ISSUER_STUB' THEN excluded.issuer_name
               ELSE bond_instruments.issuer_name
             END,
-            face_value = COALESCE(bond_instruments.face_value, excluded.face_value),
-            maturity_date = COALESCE(bond_instruments.maturity_date, excluded.maturity_date),
+            face_value = CASE
+              WHEN excluded.face_value IS NOT NULL THEN excluded.face_value
+              ELSE bond_instruments.face_value
+            END,
+            maturity_date = CASE
+              WHEN excluded.maturity_date IS NOT NULL THEN excluded.maturity_date
+              ELSE bond_instruments.maturity_date
+            END,
             source_provider = CASE
               WHEN bond_instruments.source_provider NOT LIKE '%nsdl_master%'
               THEN bond_instruments.source_provider || ',nsdl_master'
@@ -223,6 +229,51 @@ function downloadAndIngestNsdlAsset(
 
         tx();
         return { parsed: rows.length, ingested };
+      }
+    } else if (ext === 'xlsx') {
+      try {
+        const pyOutput = execFileSync('python3', ['scripts/parse_nsdl_xlsx.py', finalPath], { encoding: 'utf-8' });
+        const parsedRows: Array<{ isin: string; row_values: string[] }> = JSON.parse(pyOutput);
+
+        if (Array.isArray(parsedRows) && parsedRows.length > 0) {
+          const db = getDatabase();
+          const upsertStmt = db.prepare(`
+            INSERT INTO bond_instruments (isin, issuer_name, source_provider, updated_at)
+            VALUES (?, ?, 'nsdl_master', CURRENT_TIMESTAMP)
+            ON CONFLICT(isin) DO UPDATE SET
+              issuer_name = CASE
+                WHEN bond_instruments.issuer_name = 'UNKNOWN_ISSUER_STUB' OR excluded.issuer_name != 'UNKNOWN_ISSUER_STUB' THEN excluded.issuer_name
+                ELSE bond_instruments.issuer_name
+              END,
+              source_provider = CASE
+                WHEN bond_instruments.source_provider NOT LIKE '%nsdl_master%'
+                THEN bond_instruments.source_provider || ',nsdl_master'
+                ELSE bond_instruments.source_provider
+              END,
+              updated_at = CURRENT_TIMESTAMP
+          `);
+
+          let ingested = 0;
+          const tx = db.transaction(() => {
+            for (const r of parsedRows) {
+              const companyName = r.row_values.length > 1 ? r.row_values[1] : 'NSDL_ISSUER_STUB';
+              upsertStmt.run(r.isin, companyName);
+              recordSourceObservation({
+                isin: r.isin,
+                source_provider: 'nsdl_master',
+                source_url: link.url,
+                parser_version: 'nsdl-official-pipeline-xlsx-v1',
+                raw_payload: JSON.stringify(r)
+              });
+              ingested += 1;
+            }
+          });
+
+          tx();
+          return { parsed: parsedRows.length, ingested };
+        }
+      } catch {
+        return null;
       }
     }
 
