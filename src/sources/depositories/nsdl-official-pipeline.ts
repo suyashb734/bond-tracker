@@ -182,6 +182,14 @@ function downloadAndIngestNsdlAsset(
     const finalPath = join(rawDir, `nsdl_${link.type}_${sha256.slice(0, 12)}.${ext}`);
     writeFileSync(finalPath, buffer);
 
+    const secType = link.type === 'cp'
+      ? 'COMMERCIAL_PAPER'
+      : link.type === 'cd'
+      ? 'CERTIFICATE_OF_DEPOSIT'
+      : 'CORPORATE_BOND';
+
+    const lifecycleStatus = link.type === 'defaulted' ? 'DEFAULTED' : 'ACTIVE';
+
     if (ext === 'tsv') {
       const text = buffer.toString('utf-8');
       const rows = parseNsdlMasterText(text);
@@ -189,8 +197,8 @@ function downloadAndIngestNsdlAsset(
       if (rows.length > 0) {
         const db = getDatabase();
         const upsertStmt = db.prepare(`
-          INSERT INTO bond_instruments (isin, issuer_name, face_value, maturity_date, source_provider, updated_at)
-          VALUES (?, ?, ?, ?, 'nsdl_master', CURRENT_TIMESTAMP)
+          INSERT INTO bond_instruments (isin, issuer_name, face_value, maturity_date, security_type, lifecycle_status, source_provider, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, 'nsdl_master', CURRENT_TIMESTAMP)
           ON CONFLICT(isin) DO UPDATE SET
             issuer_name = CASE
               WHEN bond_instruments.issuer_name = 'UNKNOWN_ISSUER_STUB' OR excluded.issuer_name != 'UNKNOWN_ISSUER_STUB' THEN excluded.issuer_name
@@ -204,6 +212,8 @@ function downloadAndIngestNsdlAsset(
               WHEN excluded.maturity_date IS NOT NULL THEN excluded.maturity_date
               ELSE bond_instruments.maturity_date
             END,
+            security_type = excluded.security_type,
+            lifecycle_status = excluded.lifecycle_status,
             source_provider = CASE
               WHEN bond_instruments.source_provider NOT LIKE '%nsdl_master%'
               THEN bond_instruments.source_provider || ',nsdl_master'
@@ -215,12 +225,12 @@ function downloadAndIngestNsdlAsset(
         let ingested = 0;
         const tx = db.transaction(() => {
           for (const row of rows) {
-            upsertStmt.run(row.isin, row.company_name, row.face_value ?? null, row.maturity_date ?? null);
+            upsertStmt.run(row.isin, row.company_name, row.face_value ?? null, row.maturity_date ?? null, secType, lifecycleStatus);
             recordSourceObservation({
               isin: row.isin,
               source_provider: 'nsdl_master',
               source_url: link.url,
-              parser_version: 'nsdl-official-pipeline-v1',
+              parser_version: 'nsdl-official-pipeline-v2',
               raw_payload: row.raw_payload ?? text
             });
             ingested += 1;
@@ -238,13 +248,15 @@ function downloadAndIngestNsdlAsset(
         if (Array.isArray(parsedRows) && parsedRows.length > 0) {
           const db = getDatabase();
           const upsertStmt = db.prepare(`
-            INSERT INTO bond_instruments (isin, issuer_name, source_provider, updated_at)
-            VALUES (?, ?, 'nsdl_master', CURRENT_TIMESTAMP)
+            INSERT INTO bond_instruments (isin, issuer_name, security_type, lifecycle_status, source_provider, updated_at)
+            VALUES (?, ?, ?, ?, 'nsdl_master', CURRENT_TIMESTAMP)
             ON CONFLICT(isin) DO UPDATE SET
               issuer_name = CASE
                 WHEN bond_instruments.issuer_name = 'UNKNOWN_ISSUER_STUB' OR excluded.issuer_name != 'UNKNOWN_ISSUER_STUB' THEN excluded.issuer_name
                 ELSE bond_instruments.issuer_name
               END,
+              security_type = excluded.security_type,
+              lifecycle_status = excluded.lifecycle_status,
               source_provider = CASE
                 WHEN bond_instruments.source_provider NOT LIKE '%nsdl_master%'
                 THEN bond_instruments.source_provider || ',nsdl_master'
@@ -257,12 +269,12 @@ function downloadAndIngestNsdlAsset(
           const tx = db.transaction(() => {
             for (const r of parsedRows) {
               const companyName = r.row_values.length > 1 ? r.row_values[1] : 'NSDL_ISSUER_STUB';
-              upsertStmt.run(r.isin, companyName);
+              upsertStmt.run(r.isin, companyName, secType, lifecycleStatus);
               recordSourceObservation({
                 isin: r.isin,
                 source_provider: 'nsdl_master',
                 source_url: link.url,
-                parser_version: 'nsdl-official-pipeline-xlsx-v1',
+                parser_version: 'nsdl-official-pipeline-xlsx-v2',
                 raw_payload: JSON.stringify(r)
               });
               ingested += 1;
